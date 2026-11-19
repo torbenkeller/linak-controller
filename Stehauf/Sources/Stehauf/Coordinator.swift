@@ -28,6 +28,7 @@ final class Coordinator: ObservableObject {
     private let screen = ScreenSensor()
     private let logger = EventLogger()
     private var timer: Timer?
+    private var activity: NSObjectProtocol?
 
     private var microphone = MicrophoneSensor.Reading()
     private var cameraInUse = false
@@ -89,6 +90,12 @@ final class Coordinator: ObservableObject {
 
         calendarAuthorized = calendar.authorized
         if config.useCalendar && !calendarAuthorized { requestCalendarAccess() }
+
+        // Ohne das bremst macOS die Timer einer App ohne sichtbares Fenster
+        // (App Nap), und die Fahrbefehle kämen zu spät.
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep, reason: "Steuert den Schreibtisch"
+        )
 
         log(kind: "app", message: "Start")
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -198,11 +205,15 @@ final class Coordinator: ObservableObject {
 
     func useCurrentHeight(for direction: Direction) {
         guard let height = desk.heightMM else { return }
+        var updated = config
         if direction == .up {
-            config.standHeightMM = height.rounded()
+            updated.standHeightMM = height.rounded()
+            updated.standHeightConfirmed = true
         } else {
-            config.sitHeightMM = height.rounded()
+            updated.sitHeightMM = height.rounded()
+            updated.sitHeightConfirmed = true
         }
+        config = updated
     }
 
     /// Not-Halt aus der Oberfläche. Das Regelwerk bemerkt den Abbruch selbst.

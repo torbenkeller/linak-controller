@@ -11,7 +11,10 @@ private struct Simulation {
     var typing = true
     var assessment = Assessment()
 
-    init(config: Config = Config()) {
+    init(config: Config = Config(), confirmed: Bool = true) {
+        var config = config
+        config.sitHeightConfirmed = confirmed
+        config.standHeightConfirmed = confirmed
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         engine = Engine(config: config, calendar: calendar)
@@ -248,6 +251,15 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(sim.engine.state.blocked, "snoozed")
     }
 
+    func testNeverMovesBeforeHeightsAreConfirmed() {
+        var sim = Simulation(confirmed: false)
+        let actions = sim.run(seconds: 2 * 60 * 60)
+        XCTAssertTrue(moves(actions).isEmpty)
+        XCTAssertEqual(sim.phase, .sitting)
+        XCTAssertEqual(sim.engine.state.blocked, "setup")
+        XCTAssertTrue(sim.user(.raise).isEmpty)
+    }
+
     func testAutoDownCanBeDisabled() {
         var config = Config()
         config.autoDown = false
@@ -381,6 +393,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertFalse(config.nudgeEnabled)
         XCTAssertEqual(config.standMinutes, Config().standMinutes)
         XCTAssertEqual(config.meetingAppPatterns, Config().meetingAppPatterns)
+        XCTAssertFalse(config.heightsConfirmed)
     }
 
     func testRoundTrip() {

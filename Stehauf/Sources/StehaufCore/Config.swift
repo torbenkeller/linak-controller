@@ -18,6 +18,9 @@ public struct Config: Codable, Equatable {
     // Tisch
     public var sitHeightMM: Double = 720
     public var standHeightMM: Double = 1100
+    /// Erst wenn beide Höhen am echten Tisch übernommen wurden, fährt die App.
+    public var sitHeightConfirmed: Bool = false
+    public var standHeightConfirmed: Bool = false
     /// Wird nur benutzt, wenn der Tisch seine unterste Höhe nicht meldet.
     public var fallbackBaseHeightMM: Double = 620
     public var deskIdentifier: String? = nil
@@ -75,6 +78,10 @@ public struct Config: Codable, Equatable {
     public var sampleIntervalSeconds: Double = 15
 
     public init() {}
+
+    public var heightsConfirmed: Bool {
+        sitHeightConfirmed && standHeightConfirmed && standHeightMM - sitHeightMM >= 100
+    }
 
     /// Ab dieser Höhe gilt der Tisch als „oben“.
     public var standThresholdMM: Double { (sitHeightMM + standHeightMM) / 2 }

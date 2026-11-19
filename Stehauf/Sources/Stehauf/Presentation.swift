@@ -33,6 +33,7 @@ enum Format {
 
     static func blocked(_ reason: String?) -> String? {
         switch reason {
+        case "setup": return "Sitz- und Stehhöhe sind noch nicht festgelegt"
         case "meeting": return "Meeting erkannt"
         case "meeting-soon": return "Termin beginnt gleich"
         case "meeting-just-ended": return "Meeting gerade beendet"

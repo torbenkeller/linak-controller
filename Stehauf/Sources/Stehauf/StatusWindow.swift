@@ -32,6 +32,10 @@ struct StatusView: View {
     @ObservedObject var coordinator: Coordinator
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
+    private func heightLabel(_ name: String, _ mm: Double, _ confirmed: Bool) -> String {
+        confirmed ? "\(name): \(Format.height(mm))" : "\(name): noch nicht festgelegt"
+    }
+
     var body: some View {
         Form {
             Section("Was die App gerade erkennt") {
@@ -59,10 +63,15 @@ struct StatusView: View {
             }
 
             Section("Tisch") {
-                LabeledContent("Sitzhöhe: \(Format.height(coordinator.config.sitHeightMM))") {
+                if !coordinator.config.heightsConfirmed {
+                    Text("Einrichtung: Fahre den Tisch am Bedienpanel auf deine Sitzhöhe und übernimm sie, danach dasselbe für die Stehhöhe. Vorher fährt die App nicht.")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
+                LabeledContent(heightLabel("Sitzhöhe", coordinator.config.sitHeightMM, coordinator.config.sitHeightConfirmed)) {
                     Button("Aktuelle Höhe übernehmen") { coordinator.useCurrentHeight(for: .down) }
                 }
-                LabeledContent("Stehhöhe: \(Format.height(coordinator.config.standHeightMM))") {
+                LabeledContent(heightLabel("Stehhöhe", coordinator.config.standHeightMM, coordinator.config.standHeightConfirmed)) {
                     Button("Aktuelle Höhe übernehmen") { coordinator.useCurrentHeight(for: .up) }
                 }
                 HStack {
@@ -72,7 +81,7 @@ struct StatusView: View {
                     Spacer()
                     Button("Tisch vergessen") { coordinator.forgetDesk() }
                 }
-                .disabled(!coordinator.signals.deskConnected && coordinator.config.deskIdentifier == nil)
+                .disabled(!coordinator.signals.deskConnected)
             }
 
             Section("Ankündigung") {

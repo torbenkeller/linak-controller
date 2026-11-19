@@ -46,7 +46,8 @@ Diktier-Tools werden ignoriert. Welche Apps als Meeting-App oder Diktier-Tool ge
 ## Sicherheit
 
 - Der Tisch fährt nur, solange die App alle 0,4 Sekunden einen Befehl schickt. Stürzt die App ab, bleibt er stehen.
-- Während der Fahrt zeigt das Fenster einen Stopp-Knopf (auch Escape).
+- Die App fährt erst, wenn du Sitz- und Stehhöhe am echten Tisch übernommen hast.
+- Während der Fahrt zeigt das Fenster einen Stopp-Knopf.
 - Bleibt der Tisch vor dem Ziel stehen, etwa durch den Kollisionsschutz, versucht die App es erst nach 15 Minuten wieder.
 
 ## Messprotokoll
@@ -72,8 +73,8 @@ Die wichtigsten Werte stehen im Statusfenster. Alle Werte stehen in `~/Library/A
 ## Erster Test
 
 1. Die App findet den Tisch und zeigt im Statusfenster eine plausible Höhe.
-2. „Hochfahren“, „Runterfahren“ und „Stopp“ im Statusfenster funktionieren.
-3. Tisch auf Sitzhöhe fahren und „Aktuelle Höhe übernehmen“ drücken, dasselbe für die Stehhöhe.
+2. Tisch am Bedienpanel auf Sitzhöhe fahren und „Aktuelle Höhe übernehmen“ drücken, dasselbe für die Stehhöhe. Vorher fährt die App nicht.
+3. „Hochfahren“, „Runterfahren“ und „Stopp“ im Statusfenster funktionieren.
 4. Zum Ausprobieren `sitMinutes` in der Konfigurationsdatei auf 1 setzen: Ankündigung, Stupser und Fahrt beobachten.
 5. Diktieren und einen Testanruf starten und prüfen, ob „Meeting“ im Statusfenster stimmt.
 

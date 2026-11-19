@@ -245,7 +245,7 @@ public struct Engine {
             guard state.isAnnouncing else { return [] }
             return startMove(state.phase == .announcingUp ? .up : .down, now: now)
         case .raise, .lower:
-            guard signals.deskConnected, !state.isMoving else { return [] }
+            guard signals.deskConnected, !state.isMoving, config.heightsConfirmed else { return [] }
             return startMove(action == .raise ? .up : .down, now: now)
         }
     }
@@ -272,6 +272,7 @@ public struct Engine {
     private func blockReason(
         _ direction: Direction, signals: Signals, assessment: Assessment, now: Date, announcing: Bool
     ) -> String? {
+        if !config.heightsConfirmed { return "setup" }
         if state.disabledDay == dayKey(now) { return "disabled-today" }
         if let until = state.snoozeUntil, now < until { return "snoozed" }
         if !inActiveHours(now) { return "outside-hours" }
