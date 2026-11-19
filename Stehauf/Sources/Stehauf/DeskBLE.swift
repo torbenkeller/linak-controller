@@ -77,6 +77,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private var moveCompletion: (() -> Void)?
     /// Hat der Tisch seit dem Start dieser Fahrt Geschwindigkeit gemeldet?
     private var moveSawMotion = false
+    private var moveRestarted = false
 
     init(fallbackBaseMM: Double) {
         baseMM = fallbackBaseMM
@@ -112,6 +113,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         moveStarted = Date()
         moveCompletion = completion
         moveSawMotion = false
+        moveRestarted = false
         onLog?("Fahrt auf \(Int(target)) mm von \(heightMM.map { String(Int($0)) } ?? "?") mm")
         let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in self?.moveTick() }
         RunLoop.main.add(timer, forMode: .common)
@@ -127,7 +129,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         move(toMM: origin + offset) { [weak self] in
             // Direkt nach dem Anhalten nimmt der Tisch keinen neuen Fahrbefehl
             // an. Deshalb kurz warten, bevor es zurückgeht.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                 guard let self, self.moveTimer == nil else { return }
                 self.move(toMM: origin)
             }
@@ -141,6 +143,12 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
+    /// Meldet der Tisch Bewegung in Richtung des aktuellen Ziels?
+    private var movingTowardTarget: Bool {
+        guard let target = moveTarget, let raw = rawHeight, speed != 0 else { return false }
+        return (Int(target) > Int(raw)) == (speed > 0)
+    }
+
     private func moveTick() {
         guard
             status == .ready, let peripheral, let target = moveTarget, let started = moveStarted,
@@ -150,12 +158,20 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             return
         }
         let age = Date().timeIntervalSince(started)
-        if speed != 0 { moveSawMotion = true }
+        if movingTowardTarget { moveSawMotion = true }
+        // Noch nicht losgefahren, z. B. weil der Tisch direkt nach einer Fahrt
+        // den Befehl verschluckt hat: einmal neu starten wie zu Beginn.
+        if !moveSawMotion, !moveRestarted, age > 0.6, let command = characteristics[commandUUID] {
+            moveRestarted = true
+            onLog?("Tisch fährt nicht los, starte Fahrt neu")
+            write(command, Linak.encode(.wakeup))
+            write(command, Linak.encode(.stop))
+        }
         if age > 1.2, let last = lastUpdate, last.timeIntervalSince(started) > 0.8, speed == 0 {
             // Direkt nach einer Fahrt (z. B. beim Rückweg des Stupsers) reagiert
             // der Tisch manchmal erst verzögert. Stillstand zählt deshalb nur
             // als Ende, wenn er sich bewegt hat oder schon am Ziel ist.
-            let atTarget = rawHeight.map { abs(Int($0) - Int(target)) <= 50 } ?? false
+            let atTarget = rawHeight.map { abs(Int($0) - Int(target)) <= 20 } ?? false
             if moveSawMotion || atTarget {
                 onLog?("Fahrt beendet bei \(heightMM.map { String(Int($0)) } ?? "?") mm")
                 endMove(completed: true)
@@ -178,6 +194,17 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
         write(input, Linak.encodeTarget(raw: target))
         peripheral.readValue(for: output)
+    }
+
+    /// Schnelles Fahrtende: Sobald eine Meldung zeigt, dass der Tisch sich
+    /// bewegt hat, am Ziel ist und steht. Wichtig für einen flüssigen Stupser.
+    private func checkArrived() {
+        if movingTowardTarget { moveSawMotion = true }
+        guard moveSawMotion, speed == 0, let target = moveTarget, let raw = rawHeight,
+              abs(Int(raw) - Int(target)) <= 20
+        else { return }
+        onLog?("Fahrt beendet bei \(heightMM.map { String(Int($0)) } ?? "?") mm")
+        endMove(completed: true)
     }
 
     private func endMove(completed: Bool) {
@@ -448,6 +475,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             speed = decoded.speed
             lastUpdate = Date()
             heightMM = Linak.mm(raw: decoded.raw, baseMM: baseMM)
+            if moveTimer != nil { checkArrived() }
             onChange?()
         } else if characteristic.uuid == dpgUUID {
             handleDPG(data)
