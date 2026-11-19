@@ -213,7 +213,7 @@ final class Coordinator: ObservableObject {
         for action in actions {
             switch action {
             case .nudge(let direction):
-                if simulatedDesk == nil { desk.nudge(direction, mm: config.nudgeMM, pause: config.nudgePauseSeconds) }
+                if simulatedDesk == nil { nudgeDesk(direction) }
             case .move(_, let target):
                 if let simulated = simulatedDesk {
                     simulated.move(to: target, at: Date())
@@ -281,7 +281,15 @@ final class Coordinator: ObservableObject {
     func testNudge() {
         guard simulatedDesk == nil, config.heightsConfirmed, !engine.state.isMoving else { return }
         log(kind: "decision", message: "Nutzer: Stupser testen")
-        desk.nudge(.up, mm: config.nudgeMM, pause: config.nudgePauseSeconds)
+        nudgeDesk(.up)
+    }
+
+    private func nudgeDesk(_ direction: Direction) {
+        if config.nudgeUsesButtons {
+            desk.nudgeWithButtons(direction, mm: config.nudgeMM, pause: config.nudgeButtonPauseSeconds)
+        } else {
+            desk.nudge(direction, mm: config.nudgeMM, pause: config.nudgePauseSeconds)
+        }
     }
 
     /// Not-Halt aus der Oberfläche. Das Regelwerk bemerkt den Abbruch selbst.

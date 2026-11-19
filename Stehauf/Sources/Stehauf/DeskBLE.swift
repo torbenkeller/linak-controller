@@ -42,7 +42,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var onLog: ((String) -> Void)?
 
     var isMoving: Bool {
-        if moveTimer != nil { return true }
+        if moveTimer != nil || nudgeTimer != nil { return true }
         guard let last = lastUpdate else { return false }
         return speed != 0 && Date().timeIntervalSince(last) < 1.5
     }
@@ -79,6 +79,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private var moveSawMotion = false
     private var moveRestarted = false
     private var moveSilentUntil: Date?
+    private var nudgeTimer: Timer?
 
     init(fallbackBaseMM: Double) {
         baseMM = fallbackBaseMM
@@ -126,7 +127,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     /// Kurzer Stupser: ein Stück in die Richtung und zurück zur Ausgangshöhe.
     func nudge(_ direction: Direction, mm: Double, pause: Double) {
-        guard status == .ready, moveTimer == nil, let origin = heightMM else { return }
+        guard status == .ready, moveTimer == nil, nudgeTimer == nil, let origin = heightMM else { return }
         let offset = direction == .up ? mm : -mm
         move(toMM: origin + offset) { [weak self] in
             // Die Steuerung nimmt die Gegenrichtung nur nach einer kurzen
@@ -138,7 +139,54 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
+    /// Stupser: kurz „hoch“ wie mit der Taste am Bedienpanel, und sobald der
+    /// Tisch oben steht, nach einer kurzen Funkpause zurück auf die
+    /// Ausgangshöhe. Kürzere Pausen nimmt die Steuerung nicht an.
+    func nudgeWithButtons(_ direction: Direction, mm: Double, pause: Double) {
+        guard status == .ready, moveTimer == nil, nudgeTimer == nil, let origin = heightMM,
+              let command = characteristics[commandUUID], let output = characteristics[heightUUID]
+        else { return }
+        onLog?("Tasten-Stupser von \(Int(origin)) mm")
+        let away: Linak.Command = direction == .up ? .moveUp : .moveDown
+        let interval = 0.1
+        let legTicks = max(2, Int((mm / 15 / interval).rounded()))
+        var tick = 0
+        var wentAway = false
+        var stoppedAt: Int?
+        write(command, Linak.encode(.wakeup))
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] timer in
+            guard let self, self.status == .ready, let h = self.heightMM else {
+                timer.invalidate()
+                self?.nudgeTimer = nil
+                return
+            }
+            if abs(h - origin) >= 2 || self.speed != 0 { wentAway = true }
+            if tick < legTicks {
+                self.write(command, Linak.encode(away))
+            } else if tick == legTicks {
+                // Bremst den Tisch, sonst läuft er nach dem Loslassen weit nach.
+                self.write(command, Linak.encode(.stop))
+            } else if stoppedAt == nil, wentAway, self.speed == 0 {
+                stoppedAt = tick
+            }
+            let pauseOver = stoppedAt.map { Double(tick - $0) * interval >= pause } ?? false
+            if pauseOver || tick > 40 {
+                timer.invalidate()
+                self.nudgeTimer = nil
+                self.onLog?("Tasten-Stupser: oben bei \(Int(h)) mm nach \(tick) × 0,1 s")
+                if abs(h - origin) > 1 { self.move(toMM: origin) }
+                return
+            }
+            self.peripheral?.readValue(for: output)
+            tick += 1
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        nudgeTimer = timer
+    }
+
     func stop() {
+        nudgeTimer?.invalidate()
+        nudgeTimer = nil
         endMove(completed: false)
         if status == .ready, let command = characteristics[commandUUID] {
             write(command, Linak.encode(.stop))

@@ -35,6 +35,9 @@ public struct Config: Codable, Equatable {
     /// Pause ohne Befehle am Umkehrpunkt des Stupsers. Kürzer nimmt die
     /// LINAK-Steuerung den Rückweg nicht an.
     public var nudgePauseSeconds: Double = 0.3
+    /// Stupser mit Tastenbefehlen statt Zielhöhe.
+    public var nudgeUsesButtons: Bool = false
+    public var nudgeButtonPauseSeconds: Double = 0.3
     public var soundEnabled: Bool = true
     /// Der Tisch fährt nur, wenn während des Countdowns eine Eingabe kam.
     public var requireInputDuringCountdown: Bool = true
