@@ -96,6 +96,8 @@ struct StatusView: View {
                 Stepper("Countdown: \(Int(coordinator.config.countdownSeconds)) s",
                         value: $coordinator.config.countdownSeconds, in: 10...300, step: 10)
                 Toggle("Tisch stupst kurz zur Ankündigung", isOn: $coordinator.config.nudgeEnabled)
+                Button("Stupser testen") { coordinator.testNudge() }
+                    .disabled(!coordinator.config.heightsConfirmed || coordinator.deskStatus != .ready)
                 Toggle("Ton abspielen", isOn: $coordinator.config.soundEnabled)
             }
 

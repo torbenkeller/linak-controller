@@ -78,6 +78,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     /// Hat der Tisch seit dem Start dieser Fahrt Geschwindigkeit gemeldet?
     private var moveSawMotion = false
     private var moveRestarted = false
+    private var moveSilentUntil: Date?
 
     init(fallbackBaseMM: Double) {
         baseMM = fallbackBaseMM
@@ -114,6 +115,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         moveCompletion = completion
         moveSawMotion = false
         moveRestarted = false
+        moveSilentUntil = nil
         onLog?("Fahrt auf \(Int(target)) mm von \(heightMM.map { String(Int($0)) } ?? "?") mm")
         let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in self?.moveTick() }
         RunLoop.main.add(timer, forMode: .common)
@@ -123,13 +125,13 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
 
     /// Kurzer Stupser: ein Stück in die Richtung und zurück zur Ausgangshöhe.
-    func nudge(_ direction: Direction, mm: Double) {
+    func nudge(_ direction: Direction, mm: Double, pause: Double) {
         guard status == .ready, moveTimer == nil, let origin = heightMM else { return }
         let offset = direction == .up ? mm : -mm
         move(toMM: origin + offset) { [weak self] in
-            // Direkt nach dem Anhalten nimmt der Tisch keinen neuen Fahrbefehl
-            // an. Deshalb kurz warten, bevor es zurückgeht.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            // Die Steuerung nimmt die Gegenrichtung nur nach einer kurzen
+            // Pause ohne Befehle an. Deshalb kurz still sein, dann zurück.
+            DispatchQueue.main.asyncAfter(deadline: .now() + pause) {
                 guard let self, self.moveTimer == nil else { return }
                 self.move(toMM: origin)
             }
@@ -160,12 +162,12 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         let age = Date().timeIntervalSince(started)
         if movingTowardTarget { moveSawMotion = true }
         // Noch nicht losgefahren, z. B. weil der Tisch direkt nach einer Fahrt
-        // den Befehl verschluckt hat: einmal neu starten wie zu Beginn.
-        if !moveSawMotion, !moveRestarted, age > 0.6, let command = characteristics[commandUUID] {
+        // den Befehl verschluckt hat: einmal kurz nichts senden, dann neu
+        // starten. Durchgehendes Senden hält den Tisch im alten Zustand.
+        if !moveSawMotion, !moveRestarted, age > 0.6 {
             moveRestarted = true
-            onLog?("Tisch fährt nicht los, starte Fahrt neu")
-            write(command, Linak.encode(.wakeup))
-            write(command, Linak.encode(.stop))
+            moveSilentUntil = Date().addingTimeInterval(0.5)
+            onLog?("Tisch fährt nicht los, Funkpause und Neustart")
         }
         if age > 1.2, let last = lastUpdate, last.timeIntervalSince(started) > 0.8, speed == 0 {
             // Direkt nach einer Fahrt (z. B. beim Rückweg des Stupsers) reagiert
@@ -191,6 +193,14 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             onLog?("Fahrt nach 60 s abgebrochen")
             stop()
             return
+        }
+        if let until = moveSilentUntil {
+            if Date() < until {
+                peripheral.readValue(for: output)
+                return
+            }
+            moveSilentUntil = nil
+            if let command = characteristics[commandUUID] { write(command, Linak.encode(.wakeup)) }
         }
         write(input, Linak.encodeTarget(raw: target))
         peripheral.readValue(for: output)

@@ -213,7 +213,7 @@ final class Coordinator: ObservableObject {
         for action in actions {
             switch action {
             case .nudge(let direction):
-                if simulatedDesk == nil { desk.nudge(direction, mm: config.nudgeMM) }
+                if simulatedDesk == nil { desk.nudge(direction, mm: config.nudgeMM, pause: config.nudgePauseSeconds) }
             case .move(_, let target):
                 if let simulated = simulatedDesk {
                     simulated.move(to: target, at: Date())
@@ -275,6 +275,13 @@ final class Coordinator: ObservableObject {
             updated.sitHeightConfirmed = true
         }
         config = updated
+    }
+
+    /// Stupser zum Ausprobieren aus dem Statusfenster.
+    func testNudge() {
+        guard simulatedDesk == nil, config.heightsConfirmed, !engine.state.isMoving else { return }
+        log(kind: "decision", message: "Nutzer: Stupser testen")
+        desk.nudge(.up, mm: config.nudgeMM, pause: config.nudgePauseSeconds)
     }
 
     /// Not-Halt aus der Oberfläche. Das Regelwerk bemerkt den Abbruch selbst.
