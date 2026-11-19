@@ -345,7 +345,12 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if let error { onLog?("Benachrichtigungen für \(characteristic.uuid): \(error.localizedDescription)") }
-        guard characteristic.uuid == dpgUUID, status == .initialising, !handshakeStarted else { return }
+        // Die Bestätigung kann nach der Kopplungsabfrage erst spät kommen, wenn
+        // die Verbindung schon als bereit gilt. Dann den Handshake nachholen.
+        guard characteristic.uuid == dpgUUID, error == nil, !handshakeStarted,
+              status == .initialising || status == .ready
+        else { return }
+        if status == .ready { onLog?("Handshake wird nachgeholt") }
         handshakeStarted = true
         nextHandshakeStep()
     }
