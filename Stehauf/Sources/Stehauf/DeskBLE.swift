@@ -75,6 +75,8 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private var moveTarget: UInt16?
     private var moveStarted: Date?
     private var moveCompletion: (() -> Void)?
+    /// Hat der Tisch seit dem Start dieser Fahrt Geschwindigkeit gemeldet?
+    private var moveSawMotion = false
 
     init(fallbackBaseMM: Double) {
         baseMM = fallbackBaseMM
@@ -109,6 +111,8 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         moveTarget = Linak.raw(mm: target, baseMM: baseMM)
         moveStarted = Date()
         moveCompletion = completion
+        moveSawMotion = false
+        onLog?("Fahrt auf \(Int(target)) mm von \(heightMM.map { String(Int($0)) } ?? "?") mm")
         let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in self?.moveTick() }
         RunLoop.main.add(timer, forMode: .common)
         moveTimer = timer
@@ -121,7 +125,12 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         guard status == .ready, moveTimer == nil, let origin = heightMM else { return }
         let offset = direction == .up ? mm : -mm
         move(toMM: origin + offset) { [weak self] in
-            self?.move(toMM: origin)
+            // Direkt nach dem Anhalten nimmt der Tisch keinen neuen Fahrbefehl
+            // an. Deshalb kurz warten, bevor es zurückgeht.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                guard let self, self.moveTimer == nil else { return }
+                self.move(toMM: origin)
+            }
         }
     }
 
@@ -141,9 +150,26 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             return
         }
         let age = Date().timeIntervalSince(started)
+        if speed != 0 { moveSawMotion = true }
         if age > 1.2, let last = lastUpdate, last.timeIntervalSince(started) > 0.8, speed == 0 {
-            endMove(completed: true)
-            return
+            // Direkt nach einer Fahrt (z. B. beim Rückweg des Stupsers) reagiert
+            // der Tisch manchmal erst verzögert. Stillstand zählt deshalb nur
+            // als Ende, wenn er sich bewegt hat oder schon am Ziel ist.
+            let atTarget = rawHeight.map { abs(Int($0) - Int(target)) <= 50 } ?? false
+            if moveSawMotion || atTarget {
+                onLog?("Fahrt beendet bei \(heightMM.map { String(Int($0)) } ?? "?") mm")
+                endMove(completed: true)
+                return
+            }
+            if age > 6 {
+                onLog?("Tisch reagiert nicht auf den Fahrbefehl")
+                stop()
+                return
+            }
+            // Noch nicht losgefahren: Tisch erneut wecken.
+            if let command = characteristics[commandUUID] {
+                write(command, Linak.encode(.wakeup))
+            }
         }
         if age > 60 {
             onLog?("Fahrt nach 60 s abgebrochen")

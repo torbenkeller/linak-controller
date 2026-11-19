@@ -54,7 +54,10 @@ final class CountdownPanelController {
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             panel.standardWindowButton(button)?.isHidden = true
         }
-        panel.contentView = NSHostingView(rootView: CountdownView(coordinator: coordinator))
+        let hosting = NSHostingView(rootView: CountdownView(coordinator: coordinator))
+        // Sonst erzwingt die SwiftUI-Größe zusätzlich die Höhe der Titelleiste.
+        hosting.sizingOptions = []
+        panel.contentView = hosting
         // Mit fullSizeContentView reicht der Inhalt bis unter die (unsichtbare)
         // Titelleiste. Deshalb den ganzen Rahmen setzen, sonst bleibt unten ein
         // leerer Streifen in Höhe der Titelleiste.
