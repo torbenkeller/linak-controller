@@ -92,6 +92,9 @@ final class Coordinator: ObservableObject {
         }
         if simulatedDesk == nil { desk.start() }
 
+        calendar.onLog = { [weak self] message in
+            MainActor.assumeIsolated { self?.log(kind: "calendar", message: message) }
+        }
         calendarAuthorized = calendar.authorized
         if config.useCalendar && !calendarAuthorized { requestCalendarAccess() }
 

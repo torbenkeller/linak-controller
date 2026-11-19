@@ -142,6 +142,9 @@ final class CalendarSensor {
     private let store = EKEventStore()
     private var intervals: [DateInterval] = []
     private var lastFetch = Date.distantPast
+    private var lastReport = ""
+    /// Meldet, welche Art Termin gerade als Meeting zählt (ohne Titel).
+    var onLog: ((String) -> Void)?
 
     /// Ohne Beschreibungstext im Info.plist beendet macOS die App beim
     /// Kalenderzugriff. Das betrifft Starts ohne App-Bundle (`swift run`).
@@ -170,12 +173,26 @@ final class CalendarSensor {
             let predicate = store.predicateForEvents(
                 withStart: now.addingTimeInterval(-12 * 3600), end: now.addingTimeInterval(3 * 3600), calendars: nil
             )
-            intervals = store.events(matching: predicate).compactMap { event in
-                guard !event.isAllDay, event.status != .canceled, event.availability != .free else { return nil }
-                if requireAttendees && !event.hasAttendees { return nil }
-                let declined = event.attendees?.contains { $0.isCurrentUser && $0.participantStatus == .declined } ?? false
-                guard !declined, event.endDate > event.startDate else { return nil }
-                return DateInterval(start: event.startDate, end: event.endDate)
+            var counted: [(DateInterval, String)] = []
+            for event in store.events(matching: predicate) {
+                // Ganztägig, abgesagt, „frei“ oder „abwesend“ (Out of Office) ist kein Meeting.
+                guard !event.isAllDay, event.status != .canceled,
+                      event.availability != .free, event.availability != .unavailable,
+                      event.endDate > event.startDate
+                else { continue }
+                let attendees = event.attendees ?? []
+                let others = attendees.filter { !$0.isCurrentUser }.count
+                if requireAttendees && others == 0 { continue }
+                let declined = attendees.contains { $0.isCurrentUser && $0.participantStatus == .declined }
+                if declined { continue }
+                let info = "Verfügbarkeit \(event.availability.rawValue), \(others) weitere Teilnehmer, \(Int(event.endDate.timeIntervalSince(event.startDate) / 60)) min"
+                counted.append((DateInterval(start: event.startDate, end: event.endDate), info))
+            }
+            intervals = counted.map(\.0)
+            let current = counted.filter { $0.0.contains(now) }.map(\.1).joined(separator: "; ")
+            if current != lastReport {
+                lastReport = current
+                onLog?(current.isEmpty ? "Kalender: kein laufender Termin" : "Kalender: laufender Termin (\(current))")
             }
         }
         let busy = intervals.contains { $0.contains(now) }
