@@ -127,7 +127,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         move(toMM: origin + offset) { [weak self] in
             // Direkt nach dem Anhalten nimmt der Tisch keinen neuen Fahrbefehl
             // an. Deshalb kurz warten, bevor es zurückgeht.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 guard let self, self.moveTimer == nil else { return }
                 self.move(toMM: origin)
             }
