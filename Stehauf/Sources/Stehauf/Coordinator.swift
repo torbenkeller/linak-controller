@@ -29,6 +29,8 @@ final class Coordinator: ObservableObject {
     private let logger = EventLogger()
     private var timer: Timer?
     private var activity: NSObjectProtocol?
+    private let simulatedDesk: SimulatedDesk?
+    private var lastDeskReady = false
 
     private var microphone = MicrophoneSensor.Reading()
     private var cameraInUse = false
@@ -49,6 +51,8 @@ final class Coordinator: ObservableObject {
         config = loaded
         engine = Engine(config: loaded, state: Coordinator.restoredState())
         desk = DeskBLE(fallbackBaseMM: loaded.fallbackBaseHeightMM)
+        let simulate = ProcessInfo.processInfo.environment["STEHAUF_FAKE_DESK"] != nil
+        simulatedDesk = simulate ? SimulatedDesk(height: loaded.sitHeightMM) : nil
         desk.preferredIdentifier = loaded.deskIdentifier.flatMap(UUID.init(uuidString:))
     }
 
@@ -86,23 +90,12 @@ final class Coordinator: ObservableObject {
         desk.onLog = { [weak self] message in
             MainActor.assumeIsolated { self?.log(kind: "desk", message: message) }
         }
-        desk.start()
+        if simulatedDesk == nil { desk.start() }
 
         calendarAuthorized = calendar.authorized
         if config.useCalendar && !calendarAuthorized { requestCalendarAccess() }
 
-        // Ohne das bremst macOS die Timer einer App ohne sichtbares Fenster
-        // (App Nap), und die Fahrbefehle kämen zu spät.
-        activity = ProcessInfo.processInfo.beginActivity(
-            options: .userInitiatedAllowingIdleSystemSleep, reason: "Steuert den Schreibtisch"
-        )
-
-        log(kind: "app", message: "Start")
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        log(kind: "app", message: simulatedDesk == nil ? "Start" : "Start mit simuliertem Tisch")
         tick()
         if isFirstLaunch { showWindow() }
     }
@@ -116,25 +109,75 @@ final class Coordinator: ObservableObject {
 
     // MARK: Takt
 
+    /// Wie oft die App aufwacht. Sie soll im Hintergrund kaum Strom brauchen:
+    /// - Ankündigung, Fahrt oder offenes Statusfenster: jede Sekunde
+    /// - am Rechner, Tisch verbunden: alle 5 Sekunden
+    /// - nicht am Rechner: alle 10 Sekunden (nur um die Rückkehr zu bemerken)
+    /// - Tisch nicht erreichbar: einmal pro Minute, ohne Sensoren abzufragen
+    private var tickInterval: Double {
+        if engine.state.isAnnouncing || engine.state.isMoving || (window?.isVisible ?? false) { return 1 }
+        if !signals.deskConnected { return 60 }
+        return assessment.present ? 5 : 10
+    }
+
+    private func scheduleNextTick() {
+        timer?.invalidate()
+        let interval = tickInterval
+        let next = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+        // Spielraum, damit macOS das Aufwachen mit anderen Timern bündeln kann.
+        next.tolerance = interval * 0.2
+        RunLoop.main.add(next, forMode: .common)
+        timer = next
+    }
+
+    /// Hält macOS nur dann davon ab, die App zu drosseln (App Nap), wenn es
+    /// auf pünktliche Timer ankommt: während Countdown und Fahrt.
+    private func updateActivity() {
+        let needed = engine.state.isAnnouncing || engine.state.isMoving
+        if needed, activity == nil {
+            activity = ProcessInfo.processInfo.beginActivity(
+                options: .userInitiatedAllowingIdleSystemSleep, reason: "Schreibtisch fährt"
+            )
+        } else if !needed, let current = activity {
+            ProcessInfo.processInfo.endActivity(current)
+            activity = nil
+        }
+    }
+
     private func tick() {
         let now = Date()
-        if now.timeIntervalSince(lastSlowPoll) >= 2 {
+        var signals = Signals()
+        if let simulated = simulatedDesk {
+            signals.deskConnected = true
+            signals.deskHeightMM = simulated.height(at: now)
+            signals.deskMoving = simulated.isMoving(at: now)
+        } else {
+            signals.deskConnected = desk.status == .ready
+            signals.deskHeightMM = desk.heightMM.map { $0.rounded() }
+            signals.deskMoving = desk.isMoving
+        }
+
+        // Ohne Tisch kann die App nichts tun. Dann fragt sie auch Mikrofon,
+        // Kamera und Kalender nicht ab, außer das Statusfenster ist offen.
+        let sensing = signals.deskConnected || (window?.isVisible ?? false)
+        if sensing, now.timeIntervalSince(lastSlowPoll) >= 2 {
             lastSlowPoll = now
             microphone = MicrophoneSensor.read()
             cameraInUse = CameraSensor.inUse()
+        } else if !sensing {
+            microphone = MicrophoneSensor.Reading()
+            cameraInUse = false
         }
 
-        var signals = Signals()
-        signals.deskConnected = desk.status == .ready
-        signals.deskHeightMM = desk.heightMM.map { $0.rounded() }
-        signals.deskMoving = desk.isMoving
         signals.idleSeconds = InputIdle.seconds(.hidSystemState)
         signals.idleSessionSeconds = InputIdle.seconds(.combinedSessionState)
         signals.screenLocked = screen.locked
         signals.micApps = microphone.apps
         signals.micInUse = microphone.inUse
         signals.cameraInUse = cameraInUse
-        if config.useCalendar {
+        if config.useCalendar && sensing {
             let reading = calendar.read(now: now, requireAttendees: config.calendarRequiresAttendees)
             signals.calendarBusy = reading.busy
             signals.minutesToNextMeeting = reading.minutesToNext
@@ -150,12 +193,14 @@ final class Coordinator: ObservableObject {
         publish()
         sampleIfNeeded(now)
         if now.timeIntervalSince(lastStateSave) > 60 { saveState() }
+        scheduleNextTick()
     }
 
     private func publish() {
         state = engine.state
         deskStatus = desk.status
         deskName = desk.name
+        updateActivity()
         if state.isAnnouncing && !wasAnnouncing && config.soundEnabled {
             NSSound(named: "Glass")?.play()
         }
@@ -168,10 +213,15 @@ final class Coordinator: ObservableObject {
         for action in actions {
             switch action {
             case .nudge(let direction):
-                desk.nudge(direction, mm: config.nudgeMM)
+                if simulatedDesk == nil { desk.nudge(direction, mm: config.nudgeMM) }
             case .move(_, let target):
-                desk.move(toMM: target)
+                if let simulated = simulatedDesk {
+                    simulated.move(to: target, at: Date())
+                } else {
+                    desk.move(toMM: target)
+                }
             case .stop:
+                simulatedDesk?.stop(at: Date())
                 desk.stop()
             case .note(let message):
                 state = engine.state
@@ -187,6 +237,16 @@ final class Coordinator: ObservableObject {
             config.deskIdentifier = id
             desk.preferredIdentifier = desk.identifier
         }
+        // Verbindung da oder weg: sofort neu bewerten statt auf den nächsten
+        // langsamen Takt zu warten. Asynchron, weil diese Meldung auch mitten
+        // in einem Takt kommen kann.
+        let ready = desk.status == .ready
+        if ready != lastDeskReady {
+            lastDeskReady = ready
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated { self?.tick() }
+            }
+        }
     }
 
     // MARK: Aktionen aus der Oberfläche
@@ -195,6 +255,7 @@ final class Coordinator: ObservableObject {
         let actions = engine.handle(action, signals: signals, assessment: assessment, now: Date())
         execute(actions)
         publish()
+        scheduleNextTick()
     }
 
     /// Der Nutzer markiert, dass die Erkennung gerade falsch liegt.
@@ -204,7 +265,7 @@ final class Coordinator: ObservableObject {
     }
 
     func useCurrentHeight(for direction: Direction) {
-        guard let height = desk.heightMM else { return }
+        guard let height = signals.deskHeightMM else { return }
         var updated = config
         if direction == .up {
             updated.standHeightMM = height.rounded()
@@ -218,6 +279,7 @@ final class Coordinator: ObservableObject {
 
     /// Not-Halt aus der Oberfläche. Das Regelwerk bemerkt den Abbruch selbst.
     func stopDesk() {
+        simulatedDesk?.stop(at: Date())
         desk.stop()
         log(kind: "decision", message: "Nutzer: Stopp")
     }
@@ -236,6 +298,8 @@ final class Coordinator: ObservableObject {
 
     func showWindow() {
         window?.show()
+        // Solange das Fenster offen ist, läuft der Takt im Sekundenabstand.
+        tick()
     }
 
     func openLogFolder() {
@@ -284,5 +348,43 @@ final class Coordinator: ObservableObject {
         if let data = try? JSONEncoder().encode(engine.state) {
             try? data.write(to: Paths.state, options: .atomic)
         }
+    }
+}
+
+/// Simulierter Tisch zum Ausprobieren ohne Hardware. Aktiv, wenn die App mit
+/// der Umgebungsvariable `STEHAUF_FAKE_DESK=1` gestartet wird. Er fährt mit
+/// 40 mm pro Sekunde, ähnlich wie ein echter Tisch.
+final class SimulatedDesk {
+    private var origin: Double
+    private var target: Double
+    private var started = Date.distantPast
+    private let speed = 40.0
+
+    init(height: Double) {
+        origin = height
+        target = height
+    }
+
+    func height(at now: Date) -> Double {
+        let travelled = max(0, now.timeIntervalSince(started)) * speed
+        let distance = abs(target - origin)
+        guard travelled < distance else { return target }
+        return (origin + (target > origin ? travelled : -travelled)).rounded()
+    }
+
+    func isMoving(at now: Date) -> Bool {
+        height(at: now) != target
+    }
+
+    func move(to newTarget: Double, at now: Date) {
+        origin = height(at: now)
+        target = newTarget
+        started = now
+    }
+
+    func stop(at now: Date) {
+        let current = height(at: now)
+        origin = current
+        target = current
     }
 }

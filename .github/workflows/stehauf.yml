@@ -26,8 +26,7 @@ jobs:
         run: swift test
       - name: App-Bundle
         run: ./build-app.sh
-      - name: Smoke-Test
-        # Startet die App kurz und zeigt, was die Sensoren ins Protokoll schreiben.
+      - name: Erster Start mit Statusfenster
         run: |
           build/Stehauf.app/Contents/MacOS/Stehauf &
           APP_PID=$!
@@ -36,4 +35,52 @@ jobs:
           kill "$APP_PID"
           sleep 1
           cat "$HOME/Library/Application Support/Stehauf/logs/"*.jsonl
-          cat "$HOME/Library/Application Support/Stehauf/config.json"
+      - name: Hintergrundbetrieb ohne Tisch
+        # Der Fall "Mac unterwegs im Akkubetrieb": zeigt die verbrauchte CPU-Zeit.
+        run: |
+          build/Stehauf.app/Contents/MacOS/Stehauf &
+          APP_PID=$!
+          sleep 10
+          echo "CPU-Zeit nach 10 s: $(ps -o time= -p "$APP_PID")"
+          sleep 60
+          echo "CPU-Zeit nach 70 s: $(ps -o time= -p "$APP_PID")"
+          kill "$APP_PID"
+      - name: Hintergrundbetrieb mit simuliertem Tisch
+        run: |
+          SUPPORT="$HOME/Library/Application Support/Stehauf"
+          rm -rf "$SUPPORT"
+          mkdir -p "$SUPPORT"
+          cat > "$SUPPORT/config.json" <<'JSON'
+          {"sitHeightConfirmed": true, "standHeightConfirmed": true, "useCalendar": false,
+           "presenceTimeoutSeconds": 100000}
+          JSON
+          STEHAUF_FAKE_DESK=1 build/Stehauf.app/Contents/MacOS/Stehauf &
+          APP_PID=$!
+          sleep 10
+          echo "CPU-Zeit nach 10 s: $(ps -o time= -p "$APP_PID")"
+          sleep 60
+          echo "CPU-Zeit nach 70 s: $(ps -o time= -p "$APP_PID")"
+          kill "$APP_PID"
+          sleep 1
+          tail -n 3 "$SUPPORT/logs/"*.jsonl
+      - name: Ganzer Ablauf mit simuliertem Tisch
+        # Sitzen, Ankündigung, Hochfahren, Stehen, Runterfahren im Zeitraffer.
+        run: |
+          SUPPORT="$HOME/Library/Application Support/Stehauf"
+          rm -rf "$SUPPORT"
+          mkdir -p "$SUPPORT"
+          cat > "$SUPPORT/config.json" <<'JSON'
+          {"sitHeightConfirmed": true, "standHeightConfirmed": true, "useCalendar": false,
+           "sitMinutes": 0.1, "standMinutes": 0.1, "countdownSeconds": 3, "soundEnabled": false,
+           "presenceTimeoutSeconds": 100000, "activeIdleSeconds": 100000,
+           "requireInputDuringCountdown": false, "meetingGraceSeconds": 0}
+          JSON
+          STEHAUF_FAKE_DESK=1 build/Stehauf.app/Contents/MacOS/Stehauf &
+          APP_PID=$!
+          sleep 60
+          kill -0 "$APP_PID"
+          kill "$APP_PID"
+          sleep 1
+          grep -h '"kind":"decision"' "$SUPPORT/logs/"*.jsonl | sed -E 's/.*"message":"([^"]*)".*"t":"([^"]*)".*/\2 \1/'
+          grep -q 'Fahrt beendet' "$SUPPORT/logs/"*.jsonl
+          grep -q 'Fahre down' "$SUPPORT/logs/"*.jsonl

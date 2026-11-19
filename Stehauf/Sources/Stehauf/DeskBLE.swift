@@ -9,8 +9,12 @@ import StehaufCore
 /// er nach etwa einer Sekunde von selbst stehen.
 final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     enum Status: String {
-        case bluetoothOff, unauthorized, searching, connecting, initialising, ready
+        case bluetoothOff, unauthorized, searching, searchPaused, connecting, initialising, ready
     }
+
+    /// Ein Scan kostet Strom. Findet er nichts, hört er nach dieser Zeit auf,
+    /// bis die Suche im Statusfenster neu gestartet wird.
+    private static let scanSeconds: Double = 120
 
     private enum HandshakeStep {
         case read(Linak.DPGCommand)
@@ -59,6 +63,8 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private var pendingServices = 0
     private var rawHeight: UInt16?
     private var lastUpdate: Date?
+
+    private var scanTimer: Timer?
 
     private var handshake: [HandshakeStep] = []
     private var handshakeStarted = false
@@ -183,6 +189,15 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             return
         }
         central.scanForPeripherals(withServices: nil, options: nil)
+        scanTimer?.invalidate()
+        let timer = Timer(timeInterval: DeskBLE.scanSeconds, repeats: false) { [weak self] _ in
+            guard let self, self.status == .searching, self.peripheral == nil else { return }
+            self.central?.stopScan()
+            self.onLog?("Kein Tisch gefunden, Suche pausiert")
+            self.status = .searchPaused
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        scanTimer = timer
     }
 
     private func accepts(_ id: UUID) -> Bool {
@@ -193,6 +208,8 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     private func connect(_ candidate: CBPeripheral) {
         central?.stopScan()
+        scanTimer?.invalidate()
+        scanTimer = nil
         peripheral = candidate
         candidate.delegate = self
         status = .connecting

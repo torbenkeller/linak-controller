@@ -79,7 +79,7 @@ public struct Engine {
 
     /// Größter Abstand zwischen zwei Schritten, der noch als gesessene oder
     /// gestandene Zeit zählt. Längere Lücken sind Ruhezustand oder Neustart.
-    static let maxTickGap: Double = 10
+    static let maxTickGap: Double = 60
     /// So lange nach Fahrtbeginn wird nicht geprüft, ob der Tisch steht.
     static let moveSettleSeconds: Double = 4
     static let returnBoostSeconds: Double = 120

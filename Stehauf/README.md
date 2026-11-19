@@ -50,6 +50,32 @@ Diktier-Tools werden ignoriert. Welche Apps als Meeting-App oder Diktier-Tool ge
 - Während der Fahrt zeigt das Fenster einen Stopp-Knopf.
 - Bleibt der Tisch vor dem Ziel stehen, etwa durch den Kollisionsschutz, versucht die App es erst nach 15 Minuten wieder.
 
+## Stromverbrauch
+
+Die App wacht nur so oft auf, wie die Situation es braucht:
+
+| Situation | Takt | Was abgefragt wird |
+|---|---|---|
+| Tisch nicht erreichbar (unterwegs) | 1× pro Minute | nichts außer der Zeit seit der letzten Eingabe |
+| Tisch verbunden, nicht am Rechner | alle 10 s | Eingaben, Mikrofon, Kamera |
+| Tisch verbunden, am Rechner | alle 5 s | Eingaben, Mikrofon, Kamera, Kalender (1× pro Minute) |
+| Ankündigung, Fahrt, offenes Statusfenster | jede Sekunde | alles |
+
+Dazu kommt:
+
+- macOS darf die App im Hintergrund drosseln (App Nap). Nur während Countdown und Fahrt verhindert die App das, weil die Fahrbefehle dann pünktlich kommen müssen.
+- Ist der Tisch bekannt, wartet Bluetooth passiv auf ihn und scannt nicht. Ist noch kein Tisch bekannt, hört der Scan nach zwei Minuten auf. „Tisch suchen“ im Statusfenster startet ihn neu.
+
+Ob das auf deinem Mac passt, zeigt die Aktivitätsanzeige im Reiter „Energie“.
+
+## Ohne Tisch ausprobieren
+
+Mit einem simulierten Tisch lassen sich Ankündigung, Menüleiste und Statusfenster testen, ohne dass sich etwas bewegt:
+
+```bash
+STEHAUF_FAKE_DESK=1 build/Stehauf.app/Contents/MacOS/Stehauf
+```
+
 ## Messprotokoll
 
 Die App schreibt pro Tag eine Datei nach `~/Library/Application Support/Stehauf/logs/` im Format JSON Lines. Damit lässt sich die Erkennung nach einer Woche Betrieb mit echten Daten nachstellen.

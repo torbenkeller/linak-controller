@@ -12,6 +12,10 @@ final class StatusWindowController {
         self.coordinator = coordinator
     }
 
+    var isVisible: Bool {
+        window?.isVisible ?? false
+    }
+
     func show() {
         if window == nil {
             let host = NSHostingController(rootView: StatusView(coordinator: coordinator))
@@ -75,13 +79,17 @@ struct StatusView: View {
                     Button("Aktuelle Höhe übernehmen") { coordinator.useCurrentHeight(for: .up) }
                 }
                 HStack {
-                    Button("Hochfahren") { coordinator.perform(.raise) }
-                    Button("Runterfahren") { coordinator.perform(.lower) }
-                    Button("Stopp") { coordinator.stopDesk() }
+                    Group {
+                        Button("Hochfahren") { coordinator.perform(.raise) }
+                        Button("Runterfahren") { coordinator.perform(.lower) }
+                        Button("Stopp") { coordinator.stopDesk() }
+                    }
+                    .disabled(!coordinator.signals.deskConnected)
                     Spacer()
-                    Button("Tisch vergessen") { coordinator.forgetDesk() }
+                    Button(coordinator.config.deskIdentifier == nil ? "Tisch suchen" : "Tisch vergessen") {
+                        coordinator.forgetDesk()
+                    }
                 }
-                .disabled(!coordinator.signals.deskConnected)
             }
 
             Section("Ankündigung") {

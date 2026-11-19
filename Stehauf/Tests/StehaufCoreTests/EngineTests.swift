@@ -9,6 +9,8 @@ private struct Simulation {
     var signals = Signals()
     /// Wenn `false`, wächst die Zeit seit der letzten Eingabe mit jeder Sekunde.
     var typing = true
+    /// Abstand zwischen zwei Schritten des Regelwerks in Sekunden.
+    var tick = 1
     var assessment = Assessment()
 
     init(config: Config = Config(), confirmed: Bool = true) {
@@ -26,9 +28,9 @@ private struct Simulation {
     @discardableResult
     mutating func run(seconds: Int) -> [Action] {
         var all: [Action] = []
-        for _ in 0..<seconds {
-            now = now.addingTimeInterval(1)
-            signals.idleSeconds = typing ? 1 : signals.idleSeconds + 1
+        for _ in 0..<(seconds / tick) {
+            now = now.addingTimeInterval(Double(tick))
+            signals.idleSeconds = typing ? 1 : signals.idleSeconds + Double(tick)
             assessment = detector.assess(signals, now: now, config: engine.config)
             all.append(contentsOf: engine.step(signals: signals, assessment: assessment, now: now))
         }
@@ -249,6 +251,16 @@ final class EngineTests: XCTestCase {
         XCTAssertTrue(actions.contains(.note("Fahrt abgebrochen: Tisch hat vor dem Ziel angehalten")))
         sim.run(seconds: 60)
         XCTAssertEqual(sim.engine.state.blocked, "snoozed")
+    }
+
+    func testSlowTicksCountFullTime() {
+        var sim = Simulation()
+        sim.tick = 10
+        sim.run(seconds: 44 * 60)
+        XCTAssertEqual(sim.engine.state.sitStreak, 44 * 60 - 10, accuracy: 1)
+        XCTAssertEqual(sim.phase, .sitting)
+        sim.run(seconds: 2 * 60)
+        XCTAssertEqual(sim.phase, .announcingUp)
     }
 
     func testNeverMovesBeforeHeightsAreConfirmed() {

@@ -25,6 +25,7 @@ enum Format {
         case .bluetoothOff: return "Bluetooth ist aus"
         case .unauthorized: return "Bluetooth-Zugriff fehlt"
         case .searching: return "wird gesucht"
+        case .searchPaused: return "nicht gefunden, Suche pausiert"
         case .connecting: return "nicht in Reichweite"
         case .initialising: return "verbindet"
         case .ready: return "verbunden"
