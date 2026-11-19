@@ -112,5 +112,6 @@ Die wichtigsten Werte stehen in den Einstellungen. Alle Werte stehen in `~/Libra
 | `Sources/StehaufCore` | Protokoll, Erkennung und Regelwerk ohne macOS-Abhängigkeiten |
 | `Sources/Stehauf` | Bluetooth, Sensoren, Menüleiste, Einstellungen |
 | `Tests/StehaufCoreTests` | Tests für den Kern (`swift test`, braucht Xcode) |
+| `Resources` | App-Icon: `AppIcon.icns` für das Bundle, `AppIcon-1024.png` als Vorlage |
 
 Das Bluetooth-Protokoll ist aus dem Python-Code dieses Repositories portiert (`linak_controller/gatt.py`, `linak_controller/desk.py`).
