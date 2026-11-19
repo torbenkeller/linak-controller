@@ -1,0 +1,28 @@
+name: Stehauf
+
+on:
+  push:
+    paths:
+      - "Stehauf/**"
+      - ".github/workflows/stehauf.yml"
+  pull_request:
+    paths:
+      - "Stehauf/**"
+      - ".github/workflows/stehauf.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: Stehauf
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Build
+        run: swift build
+      - name: Tests
+        run: swift test
+      - name: App-Bundle
+        run: ./build-app.sh
