@@ -36,8 +36,10 @@ public struct Config: Codable, Equatable {
     /// LINAK-Steuerung den Rückweg nicht an.
     public var nudgePauseSeconds: Double = 0.3
     /// Stupser mit Tastenbefehlen statt Zielhöhe.
-    public var nudgeUsesButtons: Bool = false
+    public var nudgeUsesButtons: Bool = true
     public var nudgeButtonPauseSeconds: Double = 0.3
+    /// Rückweg so lange nach dem Bremsen starten, ohne auf Stillstand zu warten (nil: auf Stillstand warten).
+    public var nudgeReturnAfterBrakeSeconds: Double? = 0.3
     public var soundEnabled: Bool = true
     /// Der Tisch fährt nur, wenn während des Countdowns eine Eingabe kam.
     public var requireInputDuringCountdown: Bool = true

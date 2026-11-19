@@ -286,7 +286,8 @@ final class Coordinator: ObservableObject {
 
     private func nudgeDesk(_ direction: Direction) {
         if config.nudgeUsesButtons {
-            desk.nudgeWithButtons(direction, mm: config.nudgeMM, pause: config.nudgeButtonPauseSeconds)
+            desk.nudgeWithButtons(direction, mm: config.nudgeMM, pause: config.nudgeButtonPauseSeconds,
+                                  returnAfterBrake: config.nudgeReturnAfterBrakeSeconds)
         } else {
             desk.nudge(direction, mm: config.nudgeMM, pause: config.nudgePauseSeconds)
         }

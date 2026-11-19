@@ -142,7 +142,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     /// Stupser: kurz „hoch“ wie mit der Taste am Bedienpanel, und sobald der
     /// Tisch oben steht, nach einer kurzen Funkpause zurück auf die
     /// Ausgangshöhe. Kürzere Pausen nimmt die Steuerung nicht an.
-    func nudgeWithButtons(_ direction: Direction, mm: Double, pause: Double) {
+    func nudgeWithButtons(_ direction: Direction, mm: Double, pause: Double, returnAfterBrake: Double? = nil) {
         guard status == .ready, moveTimer == nil, nudgeTimer == nil, let origin = heightMM,
               let command = characteristics[commandUUID], let output = characteristics[heightUUID]
         else { return }
@@ -169,12 +169,17 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             } else if stoppedAt == nil, wentAway, self.speed == 0 {
                 stoppedAt = tick
             }
-            let pauseOver = stoppedAt.map { Double(tick - $0) * interval >= pause } ?? false
+            var pauseOver = stoppedAt.map { Double(tick - $0) * interval >= pause } ?? false
+            // Rückweg eine feste Zeit nach dem Bremsen, ohne auf die
+            // Stillstandsmeldung zu warten.
+            if let after = returnAfterBrake, tick >= legTicks + Int((after / interval).rounded()) {
+                pauseOver = true
+            }
             if pauseOver || tick > 40 {
                 timer.invalidate()
                 self.nudgeTimer = nil
                 self.onLog?("Tasten-Stupser: oben bei \(Int(h)) mm nach \(tick) × 0,1 s")
-                if abs(h - origin) > 1 { self.move(toMM: origin) }
+                if returnAfterBrake != nil || abs(h - origin) > 1 { self.move(toMM: origin) }
                 return
             }
             self.peripheral?.readValue(for: output)
