@@ -3,8 +3,16 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: Coordinator?
+    private var termSource: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // `pkill Stehauf` sauber beenden: Tisch anhalten, Zustand speichern, protokollieren.
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { NSApp.terminate(nil) }
+        source.resume()
+        termSource = source
+
         let coordinator = Coordinator()
         self.coordinator = coordinator
         coordinator.start()
@@ -30,7 +38,10 @@ enum StehaufApp {
         let delegate = AppDelegate()
         app.delegate = delegate
         // Kein Dock-Icon: Die App lebt in der Menüleiste.
-        app.setActivationPolicy(.accessory)
+        // Zum Testen mit Bildschirmsteuerung lässt sich die App mit
+        // STEHAUF_REGULAR_APP=1 als normale App starten.
+        let regular = ProcessInfo.processInfo.environment["STEHAUF_REGULAR_APP"] != nil
+        app.setActivationPolicy(regular ? .regular : .accessory)
         withExtendedLifetime(delegate) {
             app.run()
         }

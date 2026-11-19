@@ -55,7 +55,10 @@ final class CountdownPanelController {
             panel.standardWindowButton(button)?.isHidden = true
         }
         panel.contentView = NSHostingView(rootView: CountdownView(coordinator: coordinator))
-        panel.setContentSize(CountdownView.size)
+        // Mit fullSizeContentView reicht der Inhalt bis unter die (unsichtbare)
+        // Titelleiste. Deshalb den ganzen Rahmen setzen, sonst bleibt unten ein
+        // leerer Streifen in Höhe der Titelleiste.
+        panel.setFrame(NSRect(origin: .zero, size: CountdownView.size), display: false)
         return panel
     }
 }
@@ -74,6 +77,9 @@ struct CountdownView: View {
             if state.isMoving {
                 Text(goingUp ? "Tisch fährt hoch" : "Tisch fährt runter")
                     .font(.headline)
+                Text(Format.height(coordinator.signals.deskHeightMM))
+                    .font(.system(size: 34, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
                 Button("Stopp") { coordinator.stopDesk() }
                     .controlSize(.large)
                     .keyboardShortcut(.cancelAction)

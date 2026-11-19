@@ -212,6 +212,7 @@ final class DeskBLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         scanTimer = nil
         peripheral = candidate
         candidate.delegate = self
+        onLog?("Verbinde mit \(candidate.name ?? "?") (\(candidate.identifier.uuidString))")
         status = .connecting
         // Ohne Zeitlimit: Die Verbindung kommt zustande, sobald der Tisch in
         // Reichweite ist, z. B. wenn der Mac wieder zu Hause steht.
