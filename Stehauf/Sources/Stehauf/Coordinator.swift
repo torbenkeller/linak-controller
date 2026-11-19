@@ -41,7 +41,6 @@ final class Coordinator: ObservableObject {
     private var wasAnnouncing = false
 
     private var statusItem: StatusItemController?
-    private var panel: CountdownPanelController?
     private var window: StatusWindowController?
     let isFirstLaunch: Bool
 
@@ -81,7 +80,6 @@ final class Coordinator: ObservableObject {
     func start() {
         if isFirstLaunch { try? config.encoded().write(to: Paths.config, options: .atomic) }
         statusItem = StatusItemController(coordinator: self)
-        panel = CountdownPanelController(coordinator: self)
         window = StatusWindowController(coordinator: self)
 
         desk.onChange = { [weak self] in
@@ -209,7 +207,6 @@ final class Coordinator: ObservableObject {
         }
         wasAnnouncing = state.isAnnouncing
         statusItem?.update()
-        panel?.update()
     }
 
     private func execute(_ actions: [Action]) {

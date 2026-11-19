@@ -2,7 +2,7 @@
 
 Eine macOS-App, die deinen LINAK-Stehschreibtisch regelmäßig hochfährt, damit du öfter im Stehen arbeitest.
 
-Die App kündigt jede Fahrt an: Der Tisch stupst kurz, ein kleines Fenster zählt 60 Sekunden herunter, dann fährt er. Wer sitzen bleiben will, muss aktiv widersprechen.
+Die App kündigt jede Fahrt an: Der Tisch stupst kurz, in der Menüleiste läuft ein 60-Sekunden-Timer, dann fährt er. Wer sitzen bleiben will, tippt auf den Timer und wählt „Jetzt nicht“.
 
 > **Stand:** Der Code wird auf GitHub Actions unter macOS gebaut und die Logik ist getestet. An einem echten Tisch und mit echten Sensoren ist die App noch nicht gelaufen. Die Liste unter [Erster Test](#erster-test) zeigt, was zu prüfen ist.
 
@@ -16,11 +16,11 @@ cd Stehauf
 open build/Stehauf.app
 ```
 
-Beim ersten Start öffnet sich das Statusfenster. macOS fragt nach Bluetooth- und Kalenderzugriff. Nach jedem Neubau fragt macOS erneut, weil die App nur lokal signiert ist.
+Beim ersten Start öffnen sich die Einstellungen. macOS fragt nach Bluetooth- und Kalenderzugriff. Nach jedem Neubau fragt macOS erneut, weil die App nur lokal signiert ist.
 
 Der Tisch muss mit dem Mac gekoppelt werden. Bei den meisten LINAK-Bedienpanels hältst du dafür die Bluetooth-Taste gedrückt, bis sie blinkt, und startest dann die App. Schließe währenddessen die LINAK-App auf dem Handy, sie kann die Verbindung belegen.
 
-Die App merkt sich den ersten LINAK-Tisch, den sie findet. Starte sie deshalb das erste Mal zu Hause. Mit „Tisch vergessen“ im Statusfenster wählst du neu.
+Die App merkt sich den ersten LINAK-Tisch, den sie findet. Starte sie deshalb das erste Mal zu Hause. Mit „Tisch vergessen“ in den Einstellungen wählst du neu.
 
 ## Verhalten
 
@@ -31,7 +31,8 @@ Die App merkt sich den ersten LINAK-Tisch, den sie findet. Starte sie deshalb da
 - **Meetings:** Während eines Meetings, fünf Minuten vor einem Termin und eine Minute danach fährt nichts.
 - **Unterwegs:** Ist der Tisch nicht per Bluetooth erreichbar, tut die App nichts.
 - **Von Hand:** Fährst du den Tisch am Bedienpanel, zählt das genauso.
-- **Menüleiste:** Das Icon erscheint nur während Ankündigung, Fahrt und Stehphase. Das Statusfenster erreichst du, indem du die App erneut öffnest, zum Beispiel über Spotlight.
+- **Menüleiste:** Das Icon erscheint nur während Ankündigung und Fahrt. Während der Ankündigung zeigt es den Timer, das Menü bietet „Jetzt hochfahren“ (bzw. „Jetzt runterfahren“) und „Jetzt nicht“; während der Fahrt „Stopp“. Ein Fenster gibt es dafür nicht.
+- **Einstellungen:** über „Einstellungen …“ im Menü, ⌘, oder indem du die App erneut öffnest, zum Beispiel über Spotlight.
 
 ### Wie die App erkennt, was du tust
 
@@ -47,7 +48,7 @@ Diktier-Tools werden ignoriert. Welche Apps als Meeting-App oder Diktier-Tool ge
 
 - Der Tisch fährt nur, solange die App alle 0,4 Sekunden einen Befehl schickt. Stürzt die App ab, bleibt er stehen.
 - Die App fährt erst, wenn du Sitz- und Stehhöhe am echten Tisch übernommen hast.
-- Während der Fahrt zeigt das Fenster einen Stopp-Knopf.
+- Während der Fahrt bietet das Menü in der Menüleiste „Stopp“.
 - Bleibt der Tisch vor dem Ziel stehen, etwa durch den Kollisionsschutz, versucht die App es erst nach 15 Minuten wieder.
 
 ## Stromverbrauch
@@ -59,18 +60,18 @@ Die App wacht nur so oft auf, wie die Situation es braucht:
 | Tisch nicht erreichbar (unterwegs) | 1× pro Minute | nichts außer der Zeit seit der letzten Eingabe |
 | Tisch verbunden, nicht am Rechner | alle 10 s | Eingaben, Mikrofon, Kamera |
 | Tisch verbunden, am Rechner | alle 5 s | Eingaben, Mikrofon, Kamera, Kalender (1× pro Minute) |
-| Ankündigung, Fahrt, offenes Statusfenster | jede Sekunde | alles |
+| Ankündigung, Fahrt, offene Einstellungen | jede Sekunde | alles |
 
 Dazu kommt:
 
 - macOS darf die App im Hintergrund drosseln (App Nap). Nur während Countdown und Fahrt verhindert die App das, weil die Fahrbefehle dann pünktlich kommen müssen.
-- Ist der Tisch bekannt, wartet Bluetooth passiv auf ihn und scannt nicht. Ist noch kein Tisch bekannt, hört der Scan nach zwei Minuten auf. „Tisch suchen“ im Statusfenster startet ihn neu.
+- Ist der Tisch bekannt, wartet Bluetooth passiv auf ihn und scannt nicht. Ist noch kein Tisch bekannt, hört der Scan nach zwei Minuten auf. „Tisch suchen“ in den Einstellungen startet ihn neu.
 
 Ob das auf deinem Mac passt, zeigt die Aktivitätsanzeige im Reiter „Energie“.
 
 ## Ohne Tisch ausprobieren
 
-Mit einem simulierten Tisch lassen sich Ankündigung, Menüleiste und Statusfenster testen, ohne dass sich etwas bewegt:
+Mit einem simulierten Tisch lassen sich Ankündigung, Menüleiste und Einstellungen testen, ohne dass sich etwas bewegt:
 
 ```bash
 STEHAUF_FAKE_DESK=1 build/Stehauf.app/Contents/MacOS/Stehauf
@@ -90,26 +91,26 @@ Die App schreibt pro Tag eine Datei nach `~/Library/Application Support/Stehauf/
 
 Jede Zeile enthält die Rohsignale (`signals`), die Ableitung (`assessment`) und den Zustand des Regelwerks. Termintitel und Inhalte werden nicht gespeichert, nur die Bundle-IDs der Apps am Mikrofon.
 
-**Fehler markieren:** Im Menü und im Statusfenster gibt es „Erkennung war falsch“ mit vier festen Einträgen und einer freien Notiz. Der Knopf „Bin im Meeting“ in der Ankündigung markiert ebenfalls einen Fehler.
+**Fehler markieren:** In den Einstellungen gibt es „Erkennung war falsch“ mit vier festen Einträgen und einer freien Notiz.
 
 ## Einstellungen
 
-Die wichtigsten Werte stehen im Statusfenster. Alle Werte stehen in `~/Library/Application Support/Stehauf/config.json`; die Bedeutung ist in `Sources/StehaufCore/Config.swift` dokumentiert. Nach einer Änderung an der Datei im Statusfenster „Neu laden“ drücken.
+Die wichtigsten Werte stehen in den Einstellungen. Alle Werte stehen in `~/Library/Application Support/Stehauf/config.json`; die Bedeutung ist in `Sources/StehaufCore/Config.swift` dokumentiert. Nach einer Änderung an der Datei in den Einstellungen „Neu laden“ drücken.
 
 ## Erster Test
 
-1. Die App findet den Tisch und zeigt im Statusfenster eine plausible Höhe.
+1. Die App findet den Tisch und zeigt in den Einstellungen eine plausible Höhe.
 2. Tisch am Bedienpanel auf Sitzhöhe fahren und „Aktuelle Höhe übernehmen“ drücken, dasselbe für die Stehhöhe. Vorher fährt die App nicht.
-3. „Hochfahren“, „Runterfahren“ und „Stopp“ im Statusfenster funktionieren.
+3. „Hochfahren“, „Runterfahren“ und „Stopp“ in den Einstellungen funktionieren.
 4. Zum Ausprobieren `sitMinutes` in der Konfigurationsdatei auf 1 setzen: Ankündigung, Stupser und Fahrt beobachten.
-5. Diktieren und einen Testanruf starten und prüfen, ob „Meeting“ im Statusfenster stimmt.
+5. Diktieren und einen Testanruf starten und prüfen, ob „Meeting“ in den Einstellungen stimmt.
 
 ## Aufbau
 
 | Ordner | Inhalt |
 |---|---|
 | `Sources/StehaufCore` | Protokoll, Erkennung und Regelwerk ohne macOS-Abhängigkeiten |
-| `Sources/Stehauf` | Bluetooth, Sensoren, Menüleiste, Ankündigung, Statusfenster |
+| `Sources/Stehauf` | Bluetooth, Sensoren, Menüleiste, Einstellungen |
 | `Tests/StehaufCoreTests` | Tests für den Kern (`swift test`, braucht Xcode) |
 
 Das Bluetooth-Protokoll ist aus dem Python-Code dieses Repositories portiert (`linak_controller/gatt.py`, `linak_controller/desk.py`).

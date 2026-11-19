@@ -41,7 +41,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func update() {
         let state = coordinator.state
         let standing = coordinator.signals.deskConnected && coordinator.assessment.posture == .standing
-        let relevant = state.isAnnouncing || state.isMoving || standing
+        // Nur während Ankündigung und Fahrt. Die Ankündigung selbst kommt
+        // über den Stupser des Tisches, nicht über ein Fenster.
+        let relevant = state.isAnnouncing || state.isMoving
         let visible = coordinator.config.menuBarMode == .always || relevant
         if item.isVisible != visible { item.isVisible = visible }
         guard visible, let button = item.button else { return }
@@ -76,40 +78,39 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         button.title = image == nil ? "Stehauf \(title)" : title
     }
 
+    /// Bewusst knapp: Während einer Ankündigung nur „jetzt“ oder „jetzt nicht“,
+    /// während einer Fahrt nur „Stopp“. Alles andere steht in den Einstellungen.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let coordinator = self.coordinator
-        for line in coordinator.statusLines() {
-            let info = NSMenuItem(title: line, action: nil, keyEquivalent: "")
-            info.isEnabled = false
-            menu.addItem(info)
-        }
-        menu.addItem(.separator())
+        let state = coordinator.state
 
-        if coordinator.signals.deskConnected {
-            if coordinator.state.isMoving {
-                menu.addItem(ActionItem("Stopp") { coordinator.stopDesk() })
-            } else if coordinator.assessment.posture == .standing {
+        if state.isMoving {
+            menu.addItem(ActionItem("Stopp") { coordinator.stopDesk() })
+        } else if state.isAnnouncing {
+            let up = state.phase == .announcingUp
+            menu.addItem(ActionItem(up ? "Jetzt hochfahren" : "Jetzt runterfahren") {
+                coordinator.perform(.goNow)
+            })
+            menu.addItem(ActionItem("Jetzt nicht") {
+                // Läuft die Fahrt inzwischen schon, heißt „jetzt nicht“: anhalten.
+                if coordinator.state.isMoving {
+                    coordinator.stopDesk()
+                } else {
+                    coordinator.perform(.snooze)
+                }
+            })
+        } else if coordinator.signals.deskConnected, coordinator.config.heightsConfirmed {
+            if coordinator.assessment.posture == .standing {
                 menu.addItem(ActionItem("Jetzt runterfahren") { coordinator.perform(.lower) })
             } else {
                 menu.addItem(ActionItem("Jetzt hochfahren") { coordinator.perform(.raise) })
             }
         }
-        if coordinator.isDisabledToday || coordinator.isSnoozed {
-            menu.addItem(ActionItem("Wieder aktivieren") { coordinator.perform(.resume) })
-        } else {
-            let minutes = Int(coordinator.config.snoozeMinutes)
-            menu.addItem(ActionItem("\(minutes) min Pause") { coordinator.perform(.snooze) })
-            menu.addItem(ActionItem("Heute nicht mehr") { coordinator.perform(.notToday) })
-        }
         menu.addItem(.separator())
-
-        let feedback = NSMenuItem(title: "Erkennung war falsch", action: nil, keyEquivalent: "")
-        feedback.submenu = FeedbackMenu.make(coordinator: coordinator)
-        menu.addItem(feedback)
-        menu.addItem(ActionItem("Status und Einstellungen …") { coordinator.showWindow() })
-        menu.addItem(.separator())
-        menu.addItem(ActionItem("Stehauf beenden") { NSApp.terminate(nil) })
+        let settings = ActionItem("Einstellungen …") { coordinator.showWindow() }
+        settings.keyEquivalent = ","
+        menu.addItem(settings)
     }
 }
 

@@ -20,7 +20,7 @@ final class StatusWindowController {
         if window == nil {
             let host = NSHostingController(rootView: StatusView(coordinator: coordinator))
             let created = NSWindow(contentViewController: host)
-            created.title = "Stehauf"
+            created.title = "Stehauf – Einstellungen"
             created.styleMask = [.titled, .closable, .miniaturizable]
             created.isReleasedWhenClosed = false
             created.center()
@@ -132,6 +132,7 @@ struct StatusView: View {
                     Button("Konfigurationsdatei öffnen") { coordinator.openConfigFile() }
                     Button("Neu laden") { coordinator.reloadConfig() }
                 }
+                Button("Stehauf beenden") { NSApp.terminate(nil) }
             }
         }
         .formStyle(.grouped)

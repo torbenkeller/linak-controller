@@ -25,9 +25,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    @objc func showSettings() {
+        coordinator?.showWindow()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         coordinator?.shutdown()
     }
+}
+
+/// Unsichtbares Hauptmenü, damit ⌘, ⌘W ⌘Q und Kopieren/Einfügen im
+/// Einstellungsfenster funktionieren, obwohl die App keine Menüleiste zeigt.
+@MainActor
+private func makeMainMenu() -> NSMenu {
+    let main = NSMenu()
+    let appItem = NSMenuItem()
+    let appMenu = NSMenu()
+    appMenu.addItem(withTitle: "Einstellungen …", action: #selector(AppDelegate.showSettings), keyEquivalent: ",")
+    appMenu.addItem(withTitle: "Fenster schließen", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+    appMenu.addItem(.separator())
+    appMenu.addItem(withTitle: "Stehauf beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+    appItem.submenu = appMenu
+    main.addItem(appItem)
+
+    let editItem = NSMenuItem()
+    let editMenu = NSMenu(title: "Bearbeiten")
+    editMenu.addItem(withTitle: "Ausschneiden", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+    editMenu.addItem(withTitle: "Kopieren", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+    editMenu.addItem(withTitle: "Einfügen", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+    editMenu.addItem(withTitle: "Alles auswählen", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+    editItem.submenu = editMenu
+    main.addItem(editItem)
+    return main
 }
 
 @main
@@ -37,6 +66,7 @@ enum StehaufApp {
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
+        app.mainMenu = makeMainMenu()
         // Kein Dock-Icon: Die App lebt in der Menüleiste.
         // Zum Testen mit Bildschirmsteuerung lässt sich die App mit
         // STEHAUF_REGULAR_APP=1 als normale App starten.
