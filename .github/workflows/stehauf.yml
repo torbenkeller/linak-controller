@@ -26,3 +26,14 @@ jobs:
         run: swift test
       - name: App-Bundle
         run: ./build-app.sh
+      - name: Smoke-Test
+        # Startet die App kurz und zeigt, was die Sensoren ins Protokoll schreiben.
+        run: |
+          build/Stehauf.app/Contents/MacOS/Stehauf &
+          APP_PID=$!
+          sleep 12
+          kill -0 "$APP_PID"
+          kill "$APP_PID"
+          sleep 1
+          cat "$HOME/Library/Application Support/Stehauf/logs/"*.jsonl
+          cat "$HOME/Library/Application Support/Stehauf/config.json"

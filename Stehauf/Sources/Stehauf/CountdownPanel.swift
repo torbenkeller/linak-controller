@@ -38,7 +38,7 @@ final class CountdownPanelController {
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 150),
+            contentRect: NSRect(origin: .zero, size: CountdownView.size),
             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
             backing: .buffered, defer: false
         )
@@ -54,14 +54,16 @@ final class CountdownPanelController {
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             panel.standardWindowButton(button)?.isHidden = true
         }
-        let host = NSHostingView(rootView: CountdownView(coordinator: coordinator))
-        panel.contentView = host
-        panel.setContentSize(host.fittingSize)
+        panel.contentView = NSHostingView(rootView: CountdownView(coordinator: coordinator))
+        panel.setContentSize(CountdownView.size)
         return panel
     }
 }
 
 struct CountdownView: View {
+    /// Feste Größe, damit das Fenster bei wechselndem Inhalt nichts abschneidet.
+    static let size = CGSize(width: 420, height: 132)
+
     @ObservedObject var coordinator: Coordinator
 
     private var state: EngineState { coordinator.state }
@@ -98,6 +100,7 @@ struct CountdownView: View {
             }
         }
         .padding(16)
-        .frame(width: 400, alignment: .leading)
+        .frame(width: CountdownView.size.width, height: CountdownView.size.height, alignment: .topLeading)
+        .ignoresSafeArea()
     }
 }
