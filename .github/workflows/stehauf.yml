@@ -1,6 +1,8 @@
 name: Stehauf
 
 on:
+  # Erlaubt, den Lauf im Actions-Tab von Hand zu starten.
+  workflow_dispatch:
   push:
     paths:
       - "Stehauf/**"
@@ -13,6 +15,7 @@ on:
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: Stehauf
