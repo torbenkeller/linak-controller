@@ -18,7 +18,7 @@ open build/Stehauf.app
 
 Beim ersten Start öffnet sich das Statusfenster. macOS fragt nach Bluetooth- und Kalenderzugriff. Nach jedem Neubau fragt macOS erneut, weil die App nur lokal signiert ist.
 
-Der Tisch muss mit dem Mac gekoppelt werden: Halte die Bluetooth-Taste am Bedienpanel gedrückt, bis sie blinkt, und starte dann die App. Die LINAK-App auf dem Handy sollte währenddessen geschlossen sein, weil der Tisch nur eine Verbindung annimmt.
+Der Tisch muss mit dem Mac gekoppelt werden. Bei den meisten LINAK-Bedienpanels hältst du dafür die Bluetooth-Taste gedrückt, bis sie blinkt, und startest dann die App. Schließe währenddessen die LINAK-App auf dem Handy, sie kann die Verbindung belegen.
 
 Die App merkt sich den ersten LINAK-Tisch, den sie findet. Starte sie deshalb das erste Mal zu Hause. Mit „Tisch vergessen“ im Statusfenster wählst du neu.
 
