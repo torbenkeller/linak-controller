@@ -42,6 +42,7 @@ enum Format {
         case "disabled-today": return "für heute ausgeschaltet"
         case "outside-hours": return "außerhalb der aktiven Stunden"
         case "idle": return "wartet auf eine Eingabe"
+        case "just-returned": return "gerade erst zurück"
         case "desk-moving": return "Tisch bewegt sich"
         default: return nil
         }

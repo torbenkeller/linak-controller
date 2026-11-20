@@ -71,8 +71,7 @@ final class Coordinator: ObservableObject {
         saved.deadline = nil
         saved.waitingForPresence = false
         saved.moveStarted = nil
-        saved.awaySince = nil
-        saved.returnBoostUntil = nil
+        saved.returnGraceUntil = nil
         saved.lastTick = nil
         return saved
     }

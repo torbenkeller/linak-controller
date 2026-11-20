@@ -53,8 +53,10 @@ public struct EngineState: Codable, Equatable {
     public var moveStarted: Date? = nil
     public var snoozeUntil: Date? = nil
     public var disabledDay: String? = nil
-    public var awaySince: Date? = nil
-    public var returnBoostUntil: Date? = nil
+    /// Letzter Schritt, in dem der Nutzer am Rechner war.
+    public var lastPresent: Date? = nil
+    /// Nach der Rückkehr aus einer Pause wird bis dahin nicht angekündigt.
+    public var returnGraceUntil: Date? = nil
     public var lastTick: Date? = nil
     /// Warum gerade nicht angekündigt wird, obwohl es fällig wäre.
     public var blocked: String? = nil
@@ -82,7 +84,6 @@ public struct Engine {
     static let maxTickGap: Double = 60
     /// So lange nach Fahrtbeginn wird nicht geprüft, ob der Tisch steht.
     static let moveSettleSeconds: Double = 4
-    static let returnBoostSeconds: Double = 120
 
     public init(config: Config, state: EngineState = EngineState(), calendar: Calendar = .current) {
         self.config = config
@@ -147,12 +148,20 @@ public struct Engine {
         state.lastPosture = assessment.posture
 
         if assessment.present {
-            if let since = state.awaySince {
-                if now.timeIntervalSince(since) >= config.returnMinAwaySeconds {
-                    state.returnBoostUntil = now.addingTimeInterval(Engine.returnBoostSeconds)
+            if let last = state.lastPresent {
+                let away = now.timeIntervalSince(last)
+                // Wer lange weg war, hat nicht gesessen: Die Uhren beginnen neu.
+                if away >= config.breakResetMinutes * 60, state.sitStreak > 0 || state.standStreak > 0 {
+                    state.sitStreak = 0
+                    state.standStreak = 0
+                    actions.append(.note("Lange Pause, Sitz-Uhr beginnt neu"))
                 }
-                state.awaySince = nil
+                // Wer gerade erst wieder anfängt, soll nicht sofort hochfahren.
+                if away >= config.returnMinAwaySeconds {
+                    state.returnGraceUntil = now.addingTimeInterval(config.returnGraceSeconds)
+                }
             }
+            state.lastPresent = now
             if assessment.posture == .standing {
                 state.standStreak += dt
                 state.standSecondsToday += dt
@@ -160,8 +169,6 @@ public struct Engine {
                 state.sitStreak += dt
                 state.sitSecondsToday += dt
             }
-        } else if state.awaySince == nil {
-            state.awaySince = now
         }
 
         if state.isAnnouncing {
@@ -215,7 +222,6 @@ public struct Engine {
         state.announceStarted = now
         state.deadline = now.addingTimeInterval(config.countdownSeconds)
         state.waitingForPresence = false
-        state.returnBoostUntil = nil
         if config.nudgeEnabled { actions.append(.nudge(direction)) }
         actions.append(.note("Ankündigung \(direction.rawValue)"))
         return actions
@@ -260,10 +266,7 @@ public struct Engine {
     private func isDue(_ direction: Direction, now: Date) -> Bool {
         switch direction {
         case .up:
-            let needed = config.sitMinutes * 60
-            if state.sitStreak >= needed { return true }
-            let boosted = state.returnBoostUntil.map { now < $0 } ?? false
-            return boosted && state.sitStreak >= needed * config.returnTriggerFraction
+            return state.sitStreak >= config.sitMinutes * 60
         case .down:
             return config.autoDown && state.standStreak >= config.standMinutes * 60
         }
@@ -281,6 +284,7 @@ public struct Engine {
         if direction == .up && assessment.meetingSoon { return "meeting-soon" }
         if assessment.meetingRecentlyEnded { return "meeting-just-ended" }
         if !announcing {
+            if let grace = state.returnGraceUntil, now < grace { return "just-returned" }
             if signals.deskMoving { return "desk-moving" }
             if signals.idleSeconds > config.activeIdleSeconds { return "idle" }
         }

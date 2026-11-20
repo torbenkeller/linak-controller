@@ -2,7 +2,7 @@
 
 Eine macOS-App, die deinen LINAK-Stehschreibtisch regelmäßig hochfährt, damit du öfter im Stehen arbeitest.
 
-Die App kündigt jede Fahrt an: Der Tisch stupst kurz, in der Menüleiste läuft ein 60-Sekunden-Timer, dann fährt er. Wer sitzen bleiben will, tippt auf den Timer und wählt „Jetzt nicht“.
+Die App kündigt jede Fahrt an: Der Tisch stupst kurz, in der Menüleiste läuft ein 10-Sekunden-Timer, dann fährt er. Wer sitzen bleiben will, tippt auf den Timer und wählt „Jetzt nicht“.
 
 > **Stand:** Der Code wird auf GitHub Actions unter macOS gebaut und die Logik ist getestet. An einem echten Tisch und mit echten Sensoren ist die App noch nicht gelaufen. Die Liste unter [Erster Test](#erster-test) zeigt, was zu prüfen ist.
 
@@ -27,7 +27,7 @@ Die App merkt sich den ersten LINAK-Tisch, den sie findet. Starte sie deshalb da
 - **Sitz-Uhr:** Sie läuft nur, wenn du am Rechner bist und der Tisch unten ist. Nach 45 Minuten kommt die Ankündigung.
 - **Ankündigung:** Der Tisch fährt nur, wenn während des Countdowns eine Eingabe kam. Sonst wartet die App, bis du die Maus bewegst, und zählt dann 10 Sekunden.
 - **Stehphase:** Nach 20 Minuten Stehen fährt der Tisch mit derselben Ankündigung wieder runter. Das lässt sich abschalten.
-- **Rückkehr:** Kommst du nach einer Pause zurück und hast schon 60 % der Sitzzeit erreicht, kommt die Ankündigung sofort.
+- **Pausen:** Bist du mindestens 15 Minuten weg (oder der Mac schläft), beginnt die Sitz-Uhr von vorn. Nach jeder Pause ab 3 Minuten kündigt die App in den ersten 5 Minuten nichts an, damit der Tisch nicht losfährt, sobald du den Laptop aufklappst.
 - **Meetings:** Während eines Meetings, fünf Minuten vor einem Termin und eine Minute danach fährt nichts.
 - **Unterwegs:** Ist der Tisch nicht per Bluetooth erreichbar, tut die App nichts.
 - **Von Hand:** Fährst du den Tisch am Bedienpanel, zählt das genauso.

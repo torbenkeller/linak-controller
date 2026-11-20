@@ -15,6 +15,8 @@ private struct Simulation {
 
     init(config: Config = Config(), confirmed: Bool = true) {
         var config = config
+        // Die Tests beschreiben Abläufe mit 60 s Countdown.
+        config.countdownSeconds = 60
         config.sitHeightConfirmed = confirmed
         config.standHeightConfirmed = confirmed
         var calendar = Calendar(identifier: .gregorian)
@@ -225,9 +227,9 @@ final class EngineTests: XCTestCase {
         XCTAssertGreaterThan(sim.engine.state.sitStreak, 29 * 60)
     }
 
-    func testAbsencePausesTimerAndReturnTriggersEarly() {
+    func testShortAbsencePausesTimerAndWaitsAfterReturn() {
         var sim = Simulation()
-        sim.run(seconds: 30 * 60)
+        sim.run(seconds: 44 * 60)
         let before = sim.engine.state.sitStreak
 
         sim.typing = false
@@ -236,9 +238,33 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(sim.phase, .away)
         XCTAssertEqual(sim.engine.state.sitStreak, before, accuracy: 1)
 
+        // Zurück: Die Sitzzeit wäre nach einer Minute fällig, aber wer gerade
+        // erst wieder anfängt, bekommt eine Schonfrist.
         sim.typing = true
-        sim.run(seconds: 3)
+        sim.run(seconds: 3 * 60)
+        XCTAssertEqual(sim.phase, .sitting)
+        XCTAssertEqual(sim.engine.state.blocked, "just-returned")
+
+        sim.run(until: .announcingUp, limit: 3 * 60)
         XCTAssertEqual(sim.phase, .announcingUp)
+    }
+
+    func testLongBreakResetsSitClock() {
+        var sim = Simulation()
+        sim.run(seconds: 44 * 60)
+
+        // Über Nacht weg.
+        sim.typing = false
+        sim.signals.idleSeconds = 1000
+        sim.tick = 60
+        sim.run(seconds: 20 * 60 * 60)
+        sim.tick = 1
+
+        sim.typing = true
+        let actions = sim.run(seconds: 30 * 60)
+        XCTAssertTrue(actions.contains(.note("Lange Pause, Sitz-Uhr beginnt neu")))
+        XCTAssertEqual(sim.phase, .sitting)
+        XCTAssertEqual(sim.engine.state.sitStreak, 30 * 60, accuracy: 2)
     }
 
     func testFailedMoveSnoozes() {

@@ -27,7 +27,7 @@ public struct Config: Codable, Equatable {
     public var moveTimeoutSeconds: Double = 60
 
     // Ankündigung
-    public var countdownSeconds: Double = 60
+    public var countdownSeconds: Double = 10
     /// Kurzer Countdown, nachdem auf eine Eingabe gewartet wurde.
     public var resumeCountdownSeconds: Double = 10
     public var nudgeEnabled: Bool = true
@@ -51,10 +51,12 @@ public struct Config: Codable, Equatable {
     public var presenceTimeoutSeconds: Double = 300
     /// Eine Ankündigung startet nur, wenn die letzte Eingabe so frisch ist.
     public var activeIdleSeconds: Double = 30
-    /// Ab dieser Abwesenheit zählt die Rückkehr als guter Moment zum Hochfahren.
+    /// Ab dieser Abwesenheit gilt die Rückkehr als Neuanfang (siehe returnGraceSeconds).
     public var returnMinAwaySeconds: Double = 180
-    /// Anteil der Sitzzeit, der bei einer Rückkehr schon reicht.
-    public var returnTriggerFraction: Double = 0.6
+    /// Nach der Rückkehr aus einer Pause wird so lange nicht angekündigt.
+    public var returnGraceSeconds: Double = 300
+    /// Nach so langer Abwesenheit beginnt die Sitz-Uhr von vorn.
+    public var breakResetMinutes: Double = 15
     /// So lange muss man gestanden haben, damit die Sitz-Uhr auf null geht.
     public var minStandResetSeconds: Double = 300
     public var activeHoursStart: Int? = nil
